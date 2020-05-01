@@ -1,0 +1,44 @@
+name: release
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+
+jobs:
+  gh-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: update
+        run: |
+          git submodule status > before
+          git submodule update --init --recursive
+          git submodule status > before
+          if ! diff before after; then
+            exit 'No update required'
+          fi
+      - name: configure ruby
+        uses: actions/setup-ruby@v1.1.1
+        with:
+          ruby-version: '2.7'
+      - name: install
+        run: |
+          gem install plist
+      - name: build
+        run:
+          ruby build.rb
+          sed -i "s/Last updated.*:/Last updated: $(date +%Y-%m-%d)/" \
+            README.md
+      - name: configure git
+        run: |
+          git config --local 'user.email' 'action@github.com'
+          git config --local 'user.name' 'GitHub Action'
+      - name: commit
+        run: |
+          git commit -a -m "update: $(git submodule status | cut -d ' ' -f 2)"
+      - name: push
+        run: |
+          repo="https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}"
+          repo+="@github.com/${GITHUB_REPOSITORY}"
+          git push "${repo}" master
